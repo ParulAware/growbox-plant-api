@@ -9,51 +9,90 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Create Supabase client
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise Exception("Supabase credentials not found in .env")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Initialize FastAPI app
 app = FastAPI(
-    title="GrowBox Plant API",
-    description="API for fetching plant data from Supabase",
+    title="GrowBox Gardening API",
+    description="APIs to fetch user garden plants and plant details",
     version="1.0.0"
 )
 
-# -------------------- ROOT --------------------
+
+# -------------------------
+# Root Health Check
+# -------------------------
 @app.get("/")
 def home():
-    return {"message": "Plant API is running"}
+    return {
+        "status": "healthy",
+        "service": "GrowBox Gardening API",
+        "version": "1.0.0"
+    }
 
-# -------------------- GET ALL PLANTS --------------------
-@app.get("/plants")
-def get_plants():
-    response = supabase.table("mygarden").select("*").execute()
-    return response.data
 
-# -------------------- GET PLANT BY ID --------------------
-@app.get("/plants/{plant_id}")
-def get_plant_by_id(plant_id: int):
-    response = (
+# -------------------------
+# My Garden (Demo Mode)
+# -------------------------
+@app.get("/my-garden")
+def get_my_garden():
+    """
+    Demo mode:
+    Fetch all plants from mygarden table
+    """
+
+    garden_res = supabase.table("mygarden").select("*").execute()
+
+    if not garden_res.data:
+        return {
+            "success": True,
+            "data": []
+        }
+
+    return {
+        "success": True,
+        "data": garden_res.data
+    }
+
+
+# -------------------------
+# Plant Details + Life Cycle
+# -------------------------
+@app.get("/plant-details/{PlantId}")
+def get_plant_details(PlantId: int):
+    """
+    Fetch plant details and lifecycle using PlantId
+    """
+
+    # Fetch plant details
+    details_res = (
         supabase
-        .table("mygarden")
+        .table("plant_details")
         .select("*")
-        .eq("PlantId", plant_id)
+        .eq("PlantId", PlantId)
         .execute()
     )
 
-    if not response.data:
+    if not details_res.data:
         raise HTTPException(status_code=404, detail="Plant not found")
 
-    return response.data
+    plant_details = details_res.data[0]
 
-# -------------------- GET PLANT BY NAME (OPTIONAL) --------------------
-@app.get("/plants/by-name/{plant_name}")
-def get_plant_by_name(plant_name: str):
-    response = (
+    # Fetch lifecycle stages
+    lifecycle_res = (
         supabase
-        .table("mygarden")
+        .table("plant_lifecycle")
         .select("*")
-        .ilike("plantName", f"%{plant_name}%")
+        .eq("Id", plant_details["id"])
+        .order("stage_number")
         .execute()
     )
-    return response.data
+
+    plant_details["life_cycle"] = lifecycle_res.data
+
+    return {
+        "success": True,
+        "data": plant_details
+    }
