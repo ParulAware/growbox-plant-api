@@ -3,27 +3,21 @@ from supabase import create_client
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# ---------------- ENV ----------------
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("Supabase credentials not found in .env")
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(
     title="GrowBox Gardening API",
-    description="APIs to fetch user garden plants and plant details",
+    description="APIs to manage user gardens and fetch plant details with life cycle",
     version="1.0.0"
 )
 
-
-# -------------------------
-# Root Health Check
-# -------------------------
+# ---------------- ROOT ----------------
 @app.get("/")
 def home():
     return {
@@ -32,41 +26,73 @@ def home():
         "version": "1.0.0"
     }
 
-
-# -------------------------
-# My Garden (Demo Mode)
-# -------------------------
+# ---------------- MY GARDEN (FULL DATA) ----------------
 @app.get("/my-garden")
-def get_my_garden():
+def get_my_garden(userId: int):
     """
-    Demo mode:
-    Fetch all plants from mygarden table
+    Fetch all plants planted by user
+    Then fetch plant details + lifecycle for each plant
     """
 
-    garden_res = supabase.table("mygarden").select("*").execute()
+    # 1. Get user plants
+    garden_res = (
+        supabase
+        .table("mygarden")
+        .select("*")
+        .eq("user_id", userId)
+        .execute()
+    )
 
     if not garden_res.data:
-        return {
-            "success": True,
-            "data": []
-        }
+        return {"success": True, "data": []}
+
+    final_plants = []
+
+    # 2. For each plant in garden
+    for plant in garden_res.data:
+        plant_id = plant["PlantId"]
+
+        # 3. Fetch plant details
+        details_res = (
+            supabase
+            .table("plant_details")
+            .select("*")
+            .eq("PlantId", plant_id)
+            .execute()
+        )
+
+        if not details_res.data:
+            continue
+
+        plant_details = details_res.data[0]
+
+        # 4. Fetch life cycle using plant_details.id
+        lifecycle_res = (
+            supabase
+            .table("plant_lifecycle")
+            .select("*")
+            .eq("Id", plant_details["id"])
+            .order("stage_number")
+            .execute()
+        )
+
+        plant_details["life_cycle"] = lifecycle_res.data
+
+        # 5. Merge garden + details
+        final_plants.append({
+            "my_garden": plant,
+            "plant_details": plant_details
+        })
 
     return {
         "success": True,
-        "data": garden_res.data
+        "data": final_plants
     }
 
-
-# -------------------------
-# Plant Details + Life Cycle
-# -------------------------
+# ---------------- SINGLE PLANT DETAILS ----------------
 @app.get("/plant-details/{PlantId}")
 def get_plant_details(PlantId: int):
-    """
-    Fetch plant details and lifecycle using PlantId
-    """
 
-    # Fetch plant details
     details_res = (
         supabase
         .table("plant_details")
@@ -80,7 +106,6 @@ def get_plant_details(PlantId: int):
 
     plant_details = details_res.data[0]
 
-    # Fetch lifecycle stages
     lifecycle_res = (
         supabase
         .table("plant_lifecycle")
