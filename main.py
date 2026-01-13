@@ -9,9 +9,6 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("Supabase environment variables not set")
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # -------------------- APP --------------------
@@ -21,8 +18,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# -------------------- DUMMY USER --------------------
-DUMMY_USER_ID = 101  # ONLY for testing
+# -------------------- DUMMY USER DATA --------------------
+DUMMY_USER_ID = 101
+
+DUMMY_USER_PLANTS = {
+    101: ["Tomato", "Rose"]
+}
 
 # -------------------- ROOT --------------------
 @app.get("/")
@@ -33,15 +34,19 @@ def home():
 @app.get("/my-garden")
 def get_my_garden(userId: int):
 
-    # Dummy authentication check
-    if userId != DUMMY_USER_ID:
+    # Step 1: Validate dummy user
+    if userId not in DUMMY_USER_PLANTS:
         raise HTTPException(status_code=401, detail="Unauthorized user")
 
+    user_plant_names = DUMMY_USER_PLANTS[userId]
+
     try:
+        # Step 2: Match plant names with mygarden table
         response = (
             supabase
             .table("mygarden")
             .select("PlantId, plantName, plant_image, plantedDate, categories")
+            .in_("plantName", user_plant_names)
             .execute()
         )
 
@@ -58,6 +63,7 @@ def get_my_garden(userId: int):
 def get_plant_details(PlantId: int):
 
     try:
+        # Step 3a: Fetch plant details using PlantId
         plant_response = (
             supabase
             .table("plant_details")
@@ -71,6 +77,7 @@ def get_plant_details(PlantId: int):
 
         plant = plant_response.data[0]
 
+        # Step 3b: Fetch lifecycle stages using plant_details.id
         lifecycle_response = (
             supabase
             .table("plant_life_cycle")
