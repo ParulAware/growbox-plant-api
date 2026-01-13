@@ -19,8 +19,6 @@ app = FastAPI(
 )
 
 # -------------------- DUMMY USER DATA --------------------
-DUMMY_USER_ID = 101
-
 DUMMY_USER_PLANTS = {
     101: ["Tomato", "Rose"]
 }
@@ -34,19 +32,18 @@ def home():
 @app.get("/my-garden")
 def get_my_garden(userId: int):
 
-    # Step 1: Validate dummy user
+    # Dummy user validation
     if userId not in DUMMY_USER_PLANTS:
         raise HTTPException(status_code=401, detail="Unauthorized user")
 
-    user_plant_names = DUMMY_USER_PLANTS[userId]
+    plant_names = DUMMY_USER_PLANTS[userId]
 
     try:
-        # Step 2: Match plant names with mygarden table
         response = (
             supabase
             .table("mygarden")
             .select("PlantId, plantName, plant_image, plantedDate, categories")
-            .in_("plantName", user_plant_names)
+            .in_("plantName", plant_names)
             .execute()
         )
 
@@ -58,16 +55,19 @@ def get_my_garden(userId: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# -------------------- PLANT DETAILS --------------------
+# -------------------- PLANT DETAILS + LIFECYCLE --------------------
 @app.get("/plant-details/{PlantId}")
 def get_plant_details(PlantId: int):
 
     try:
-        # Step 3a: Fetch plant details using PlantId
+        # 1️⃣ plant_details via PlantId
         plant_response = (
             supabase
             .table("plant_details")
-            .select("*")
+            .select(
+                "id, PlantId, plantName, plant_image, plantedDate, sunlight, "
+                "soil_type, environmental_needs, care_instruction"
+            )
             .eq("PlantId", PlantId)
             .execute()
         )
@@ -77,11 +77,14 @@ def get_plant_details(PlantId: int):
 
         plant = plant_response.data[0]
 
-        # Step 3b: Fetch lifecycle stages using plant_details.id
+        # 2️⃣ PlantLifeCycle via plant_details.id
         lifecycle_response = (
             supabase
-            .table("plantLifeCycle")
-            .select("*")
+            .table("PlantLifeCycle")
+            .select(
+                "cycle_id, Id, plant_name, stage_number, stage_name, "
+                "stage_description, duration, water_requirement, fertilizer_requirement"
+            )
             .eq("Id", plant["id"])
             .order("stage_number")
             .execute()
@@ -96,5 +99,27 @@ def get_plant_details(PlantId: int):
 
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------- OPTIONAL: ONLY LIFECYCLE --------------------
+@app.get("/plant-lifecycle/{plantDetailId}")
+def get_plant_lifecycle(plantDetailId: int):
+
+    try:
+        response = (
+            supabase
+            .table("PlantLifeCycle")
+            .select("*")
+            .eq("Id", plantDetailId)
+            .order("stage_number")
+            .execute()
+        )
+
+        return {
+            "success": True,
+            "data": response.data or []
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
