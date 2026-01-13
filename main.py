@@ -80,7 +80,7 @@ def get_plant_details(PlantId: int):
         # 2️⃣ PlantLifeCycle via plant_details.id
         lifecycle_response = (
             supabase
-            .table("PlantLifeCycle")
+            .table("plantLifeCycle")
             .select(
                 "cycle_id, Id, plant_name, stage_number, stage_name, "
                 "stage_description, duration, water_requirement, fertilizer_requirement"
@@ -109,7 +109,7 @@ def get_plant_lifecycle(plantDetailId: int):
     try:
         response = (
             supabase
-            .table("PlantLifeCycle")
+            .table("plantLifeCycle")
             .select("*")
             .eq("Id", plantDetailId)
             .order("stage_number")
