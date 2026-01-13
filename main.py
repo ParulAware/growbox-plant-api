@@ -80,7 +80,7 @@ def get_plant_details(PlantId: int):
         # Step 3b: Fetch lifecycle stages using plant_details.id
         lifecycle_response = (
             supabase
-            .table("plant_life_cycle")
+            .table("plantLifeCycle")
             .select("*")
             .eq("Id", plant["id"])
             .order("stage_number")
