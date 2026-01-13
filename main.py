@@ -3,57 +3,80 @@ from supabase import create_client
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# -------------------- CONFIG --------------------
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Create Supabase client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Initialize FastAPI app
 app = FastAPI(
-    title="GrowBox Plant API",
-    description="API for fetching plant data from Supabase",
+    title="GrowBox Gardening API",
+    description="APIs to manage user gardens and fetch detailed plant information",
     version="1.0.0"
 )
+
+# -------------------- DUMMY USER --------------------
+DUMMY_USER_ID = 101   # only dummy part for now
 
 # -------------------- ROOT --------------------
 @app.get("/")
 def home():
-    return {"message": "Plant API is running"}
+    return {"message": "GrowBox Gardening API is running"}
 
-# -------------------- GET ALL PLANTS --------------------
-@app.get("/plants")
-def get_plants():
-    response = supabase.table("mygarden").select("*").execute()
-    return response.data
+# -------------------- MY GARDEN --------------------
+@app.get("/my-garden")
+def get_my_garden(userId: int):
+    # Dummy user validation
+    if userId != DUMMY_USER_ID:
+        raise HTTPException(status_code=401, detail="Unauthorized user")
 
-# -------------------- GET PLANT BY ID --------------------
-@app.get("/plants/{plant_id}")
-def get_plant_by_id(plant_id: int):
     response = (
         supabase
         .table("mygarden")
-        .select("*")
-        .eq("PlantId", plant_id)
+        .select("PlantId, plantName, plant_image, plantedDate, categories")
+        .eq("userId", userId)
         .execute()
     )
 
-    if not response.data:
+    return {
+        "success": True,
+        "data": response.data
+    }
+
+# -------------------- PLANT DETAILS --------------------
+@app.get("/plant-details/{PlantId}")
+def get_plant_details(PlantId: int):
+
+    # Fetch plant details
+    plant_response = (
+        supabase
+        .table("plant_details")
+        .select("*")
+        .eq("PlantId", PlantId)
+        .single()
+        .execute()
+    )
+
+    if not plant_response.data:
         raise HTTPException(status_code=404, detail="Plant not found")
 
-    return response.data
+    plant = plant_response.data
 
-# -------------------- GET PLANT BY NAME (OPTIONAL) --------------------
-@app.get("/plants/by-name/{plant_name}")
-def get_plant_by_name(plant_name: str):
-    response = (
+    # Fetch life cycle stages
+    lifecycle_response = (
         supabase
-        .table("mygarden")
+        .table("plant_life_cycle")
         .select("*")
-        .ilike("plantName", f"%{plant_name}%")
+        .eq("Id", plant["id"])
+        .order("stage_number")
         .execute()
     )
-    return response.data
+
+    plant["life_cycle"] = lifecycle_response.data
+
+    return {
+        "success": True,
+        "data": plant
+    }
